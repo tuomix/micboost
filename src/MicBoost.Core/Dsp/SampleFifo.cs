@@ -61,6 +61,32 @@ public sealed class SampleFifo
         _count -= samples;
     }
 
+    /// <summary>
+    /// Removes <paramref name="samples"/> from the front of the FIFO, cross-fading the old head into the new
+    /// head over <paramref name="fadeLength"/> samples so the cut is click-free.
+    /// </summary>
+    public void SpliceSkip(int samples, int fadeLength)
+    {
+        samples = Math.Min(samples, _count);
+        if (samples <= 0) return;
+        int fade = Math.Min(fadeLength, _count - samples);
+        if (fade <= 0)
+        {
+            Skip(samples);
+            return;
+        }
+        int len = _data.Length;
+        Span<float> head = fade <= 512 ? stackalloc float[fade] : new float[fade];
+        for (int i = 0; i < fade; i++) head[i] = _data[(_read + i) % len];
+        Skip(samples);
+        for (int i = 0; i < fade; i++)
+        {
+            float t = (i + 1f) / (fade + 1f);
+            int idx = (_read + i) % len;
+            _data[idx] = head[i] * (1f - t) + _data[idx] * t;
+        }
+    }
+
     public void Clear()
     {
         _read = 0;

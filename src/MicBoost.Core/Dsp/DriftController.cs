@@ -1,42 +1,89 @@
 namespace MicBoost.Core.Dsp;
 
 /// <summary>
-/// Keeps the FIFO between a capture device and a render device near a target fill level by
-/// nudging the resampling ratio (the two devices run on independent clocks that drift apart).
+/// Keeps the FIFO between a capture device and a render device small but never empty.
+/// <para>
+/// At every render read the controller records the "slack": samples left in the FIFO after the read.
+/// Once per window it looks at the minimum slack (the closest we came to an underrun):
+/// a large surplus is removed at once by a short cross-faded splice (<see cref="TakePendingSkip"/>),
+/// and slow clock drift between the two devices is corrected by nudging the resampling ratio.
+/// </para>
 /// </summary>
 public sealed class DriftController
 {
-    private const double MaxCorrection = 0.004; // +/-0.4%, inaudible
-    private double _avgFill = -1;
+    private const double MaxCorrection = 0.001; // +/-0.1%: inaudible, more than enough for clock drift
+    private readonly int _windowSamples;
+    private int _windowMin = int.MaxValue;
+    private int _consumed;
+    private double _avgSlack = double.NaN;
+    private double _avgFill = double.NaN;
+    private int _pendingSkip;
 
-    public DriftController(int targetFillSamples)
+    /// <param name="targetSlack">Safety margin, in samples, that should remain in the FIFO at its emptiest.</param>
+    /// <param name="windowSamples">How many consumed samples make up one observation window.</param>
+    public DriftController(int targetSlack, int windowSamples)
     {
-        TargetFill = Math.Max(1, targetFillSamples);
+        TargetSlack = Math.Max(1, targetSlack);
+        _windowSamples = Math.Max(1, windowSamples);
     }
 
-    public int TargetFill { get; set; }
+    public int TargetSlack { get; set; }
 
-    /// <summary>Smoothed fill level, in samples.</summary>
-    public double AverageFill => Math.Max(0, _avgFill);
+    /// <summary>Smoothed per-window minimum slack, in samples.</summary>
+    public double AverageSlack => double.IsNaN(_avgSlack) ? 0 : _avgSlack;
 
+    /// <summary>Smoothed FIFO fill just before each read, in samples (used for latency estimates).</summary>
+    public double AverageFill => double.IsNaN(_avgFill) ? 0 : _avgFill;
+
+    /// <summary>Ratio correction to apply to the resampler (above 1 = produce more samples).</summary>
     public double Correction { get; private set; } = 1.0;
 
-    /// <summary>Feeds the current FIFO fill (samples) and returns the ratio correction to apply.</summary>
-    public double Update(int fillSamples)
+    public long Splices { get; private set; }
+
+    /// <summary>Call before every render read with the FIFO fill and the number of samples about to be read.</summary>
+    public void ObserveRead(int fillBeforeRead, int requested)
     {
-        _avgFill = _avgFill < 0 ? fillSamples : _avgFill + 0.02 * (fillSamples - _avgFill);
-        double error = (TargetFill - _avgFill) / TargetFill; // >0: too empty, produce more
-        double c = 1.0 + Math.Clamp(error * 0.002, -MaxCorrection, MaxCorrection);
-        Correction = c;
-        return c;
+        _avgFill = double.IsNaN(_avgFill) ? fillBeforeRead : _avgFill + 0.05 * (fillBeforeRead - _avgFill);
+        int slack = fillBeforeRead - requested;
+        if (slack < _windowMin) _windowMin = slack;
+        _consumed += requested;
+        if (_consumed >= _windowSamples) EndWindow();
     }
 
-    /// <summary>True if the FIFO holds so much that we should drop data to restore low latency.</summary>
-    public bool ShouldFlush(int fillSamples) => fillSamples > TargetFill * 4 + 512;
+    /// <summary>Samples to splice out of the FIFO now (0 if none). Resets after reading.</summary>
+    public int TakePendingSkip()
+    {
+        int s = _pendingSkip;
+        _pendingSkip = 0;
+        return s;
+    }
 
     public void Reset()
     {
-        _avgFill = -1;
+        _windowMin = int.MaxValue;
+        _consumed = 0;
+        _avgSlack = double.NaN;
+        _avgFill = double.NaN;
+        _pendingSkip = 0;
         Correction = 1.0;
+    }
+
+    private void EndWindow()
+    {
+        int min = _windowMin;
+        _windowMin = int.MaxValue;
+        _consumed = 0;
+
+        // A surplus of more than one target beyond the margin is cut out immediately.
+        if (min > TargetSlack * 2)
+        {
+            _pendingSkip = min - TargetSlack;
+            Splices++;
+            min = TargetSlack;
+        }
+
+        _avgSlack = double.IsNaN(_avgSlack) ? min : _avgSlack + 0.25 * (min - _avgSlack);
+        double error = (TargetSlack - _avgSlack) / TargetSlack; // >0: too close to empty, produce more
+        Correction = 1.0 + Math.Clamp(error * 0.0005, -MaxCorrection, MaxCorrection);
     }
 }

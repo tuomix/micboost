@@ -58,16 +58,41 @@ public class ResamplerTests
     }
 
     [Fact]
-    public void Drift_controller_steers_towards_target()
+    public void Drift_controller_splices_out_large_surplus()
     {
-        var dc = new DriftController(480);
-        for (int i = 0; i < 200; i++) dc.Update(2000);
-        Assert.True(dc.Correction < 1.0);
-        dc.Reset();
-        for (int i = 0; i < 200; i++) dc.Update(10);
+        var dc = new DriftController(targetSlack: 240, windowSamples: 4800);
+        for (int i = 0; i < 10; i++) dc.ObserveRead(fillBeforeRead: 3000, requested: 480);
+        Assert.Equal(3000 - 480 - 240, dc.TakePendingSkip());
+        Assert.Equal(0, dc.TakePendingSkip());
+        Assert.Equal(1, dc.Splices);
+    }
+
+    [Fact]
+    public void Drift_controller_nudges_ratio_for_small_errors()
+    {
+        var dc = new DriftController(targetSlack: 240, windowSamples: 480);
+        for (int i = 0; i < 50; i++) dc.ObserveRead(480 + 40, 480); // slack 40 < 240: running low
         Assert.True(dc.Correction > 1.0);
-        Assert.True(dc.ShouldFlush(5000));
-        Assert.False(dc.ShouldFlush(600));
+        Assert.True(dc.Correction <= 1.001);
+        dc.Reset();
+        for (int i = 0; i < 50; i++) dc.ObserveRead(480 + 400, 480); // slack 400: a bit high, below splice level
+        Assert.True(dc.Correction < 1.0);
+        Assert.Equal(0, dc.TakePendingSkip());
+    }
+
+    [Fact]
+    public void Fifo_splice_removes_samples_without_a_jump()
+    {
+        var fifo = new SampleFifo(4096);
+        var ramp = Enumerable.Range(0, 2000).Select(i => MathF.Sin(i * 0.01f)).ToArray();
+        fifo.Write(ramp);
+        fifo.SpliceSkip(500, 48);
+        Assert.Equal(1500, fifo.Count);
+        var outBuf = new float[1500];
+        fifo.Read(outBuf);
+        for (int i = 1; i < outBuf.Length; i++)
+            Assert.True(MathF.Abs(outBuf[i] - outBuf[i - 1]) < 0.1f, $"jump at {i}");
+        Assert.Equal(ramp[1000], outBuf[500]);
     }
 
     [Fact]
