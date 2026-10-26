@@ -1,7 +1,10 @@
 namespace MicBoost.Core.Devices;
 
 /// <summary>A device as seen by the picker (platform-neutral).</summary>
-public sealed record DeviceEntry(string Id, string Name);
+public sealed record DeviceEntry(string Id, string Name)
+{
+    public override string ToString() => Name;
+}
 
 /// <summary>Name matching and selection rules for the input and output devices.</summary>
 public static class DevicePicker

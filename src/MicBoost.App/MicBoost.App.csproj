@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MicBoost</AssemblyName>
+    <RootNamespace>MicBoost.App</RootNamespace>
+    <ApplicationIcon>..\..\assets\micboost.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyTitle>MicBoost</AssemblyTitle>
+    <Description>Software microphone boost for the HyperX Cloud III</Description>
+
+    <!-- Single self-contained exe when published with -r win-x64 -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- No usage data, no network. -->
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+    <!-- WinForms analyzer wants DPI in code; this is a WPF app, so the manifest is the right place. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\assets\micboost.ico" Link="Assets\micboost.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MicBoost.Core\MicBoost.Core.csproj" />
+    <ProjectReference Include="..\MicBoost.Audio\MicBoost.Audio.csproj" />
+  </ItemGroup>
+
+</Project>

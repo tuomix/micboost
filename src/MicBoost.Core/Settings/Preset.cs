@@ -15,6 +15,8 @@ public sealed record Preset
     [JsonIgnore]
     public bool IsBuiltIn { get; init; }
 
+    public override string ToString() => Name;
+
     public ProcessorSettings ApplyTo(ProcessorSettings current) => current with
     {
         GainDb = GainDb,

@@ -20,7 +20,6 @@ public sealed class AppSettings
     public string? OutputDeviceId { get; set; }
     public bool MonitorEnabled { get; set; }
     public string? MonitorDeviceId { get; set; }
-    public bool MonitorWarningAccepted { get; set; }
 
     // Processing
     public float GainDb { get; set; } = 12f;
@@ -32,8 +31,8 @@ public sealed class AppSettings
     public List<Preset> CustomPresets { get; set; } = new();
 
     // Behaviour
-    public string HotkeyMute { get; set; } = "Ctrl+Alt+M";
-    public string HotkeyBypass { get; set; } = "Ctrl+Alt+B";
+    public string HotkeyMute { get; set; } = "Ctrl+Alt+F9";
+    public string HotkeyBypass { get; set; } = "Ctrl+Alt+F10";
     public bool StartMinimized { get; set; }
     public bool CloseToTray { get; set; } = true;
     public LatencyMode Latency { get; set; } = LatencyMode.Normal;
