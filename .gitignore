@@ -1,0 +1,29 @@
+## .NET
+bin/
+obj/
+out/
+publish/
+artifacts/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+.vs/
+.vscode/
+.idea/
+*.swp
+TestResults/
+*.trx
+*.coverage
+coverage*.xml
+
+## Local NuGet package folder (see nuget.config)
+.nuget/
+
+## Installer output
+installer/Output/
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
